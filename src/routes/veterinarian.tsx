@@ -63,8 +63,8 @@ const VET = "Dr. Anjali Kulkarni";
 
 function VetDashboard() {
   const [local, setLocal] = useState<Treatment[]>([]);
-  const [cowId, setCowId] = useState(cattle[0].id);
-  const [drug, setDrug] = useState(mrlReference[0].drug);
+  const [cowId, setCowId] = useState(cattle[0]!.id);
+  const [drug, setDrug] = useState(mrlReference[0]!.drug);
   const [dose, setDose] = useState("10 mg/kg once daily");
   const [courseDays, setCourseDays] = useState("3");
   const [withdrawalDays, setWithdrawalDays] = useState("5");
