@@ -10,33 +10,128 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AuthorityRouteImport } from './routes/authority'
+import { Route as CollectionCentreRouteImport } from './routes/collection-centre'
+import { Route as FactoryRouteImport } from './routes/factory'
+import { Route as FarmerRouteImport } from './routes/farmer'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as VerifyRouteImport } from './routes/verify'
+import { Route as VeterinarianRouteImport } from './routes/veterinarian'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuthorityRoute = AuthorityRouteImport.update({
+  id: '/authority',
+  path: '/authority',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CollectionCentreRoute = CollectionCentreRouteImport.update({
+  id: '/collection-centre',
+  path: '/collection-centre',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FactoryRoute = FactoryRouteImport.update({
+  id: '/factory',
+  path: '/factory',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FarmerRoute = FarmerRouteImport.update({
+  id: '/farmer',
+  path: '/farmer',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VerifyRoute = VerifyRouteImport.update({
+  id: '/verify',
+  path: '/verify',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const VeterinarianRoute = VeterinarianRouteImport.update({
+  id: '/veterinarian',
+  path: '/veterinarian',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/authority': typeof AuthorityRoute
+  '/collection-centre': typeof CollectionCentreRoute
+  '/factory': typeof FactoryRoute
+  '/farmer': typeof FarmerRoute
+  '/login': typeof LoginRoute
+  '/verify': typeof VerifyRoute
+  '/veterinarian': typeof VeterinarianRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/authority': typeof AuthorityRoute
+  '/collection-centre': typeof CollectionCentreRoute
+  '/factory': typeof FactoryRoute
+  '/farmer': typeof FarmerRoute
+  '/login': typeof LoginRoute
+  '/verify': typeof VerifyRoute
+  '/veterinarian': typeof VeterinarianRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/authority': typeof AuthorityRoute
+  '/collection-centre': typeof CollectionCentreRoute
+  '/factory': typeof FactoryRoute
+  '/farmer': typeof FarmerRoute
+  '/login': typeof LoginRoute
+  '/verify': typeof VerifyRoute
+  '/veterinarian': typeof VeterinarianRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/'
+  fullPaths:
+    | '/'
+    | '/authority'
+    | '/collection-centre'
+    | '/factory'
+    | '/farmer'
+    | '/login'
+    | '/verify'
+    | '/veterinarian'
   fileRoutesByTo: FileRoutesByTo
-  to: '/'
-  id: '__root__' | '/'
+  to:
+    | '/'
+    | '/authority'
+    | '/collection-centre'
+    | '/factory'
+    | '/farmer'
+    | '/login'
+    | '/verify'
+    | '/veterinarian'
+  id:
+    | '__root__'
+    | '/'
+    | '/authority'
+    | '/collection-centre'
+    | '/factory'
+    | '/farmer'
+    | '/login'
+    | '/verify'
+    | '/veterinarian'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AuthorityRoute: typeof AuthorityRoute
+  CollectionCentreRoute: typeof CollectionCentreRoute
+  FactoryRoute: typeof FactoryRoute
+  FarmerRoute: typeof FarmerRoute
+  LoginRoute: typeof LoginRoute
+  VerifyRoute: typeof VerifyRoute
+  VeterinarianRoute: typeof VeterinarianRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -48,11 +143,67 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/authority': {
+      id: '/authority'
+      path: '/authority'
+      fullPath: '/authority'
+      preLoaderRoute: typeof AuthorityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/collection-centre': {
+      id: '/collection-centre'
+      path: '/collection-centre'
+      fullPath: '/collection-centre'
+      preLoaderRoute: typeof CollectionCentreRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/factory': {
+      id: '/factory'
+      path: '/factory'
+      fullPath: '/factory'
+      preLoaderRoute: typeof FactoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/farmer': {
+      id: '/farmer'
+      path: '/farmer'
+      fullPath: '/farmer'
+      preLoaderRoute: typeof FarmerRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/verify': {
+      id: '/verify'
+      path: '/verify'
+      fullPath: '/verify'
+      preLoaderRoute: typeof VerifyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/veterinarian': {
+      id: '/veterinarian'
+      path: '/veterinarian'
+      fullPath: '/veterinarian'
+      preLoaderRoute: typeof VeterinarianRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AuthorityRoute: AuthorityRoute,
+  CollectionCentreRoute: CollectionCentreRoute,
+  FactoryRoute: FactoryRoute,
+  FarmerRoute: FarmerRoute,
+  LoginRoute: LoginRoute,
+  VerifyRoute: VerifyRoute,
+  VeterinarianRoute: VeterinarianRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
