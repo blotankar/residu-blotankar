@@ -203,11 +203,11 @@ export function withdrawalFor(cowId: string, today: Date = DEMO_TODAY): Withdraw
     .filter((t) => t.cowId === cowId)
     .sort((a, b) => (a.startDate < b.startDate ? 1 : -1));
 
-  if (cowTreatments.length === 0) {
+  const latest = cowTreatments[0];
+  if (!latest) {
     return { cowId, status: "SAFE", daysRemaining: 0, reason: "No antibiotic treatment recorded." };
   }
 
-  const latest = cowTreatments[0];
   const clearsOn = addDays(new Date(latest.startDate), latest.courseDays + latest.withdrawalDays);
   const ms = clearsOn.getTime() - today.getTime();
   const daysRemaining = Math.max(0, Math.ceil(ms / 86_400_000));
@@ -273,7 +273,7 @@ const rawEvents: Omit<LedgerEvent, "hash" | "prevHash">[] = [
 ];
 
 export const ledger: LedgerEvent[] = rawEvents.reduce<LedgerEvent[]>((acc, e) => {
-  const prevHash = acc.length ? acc[acc.length - 1].hash : "0x" + "0".repeat(32);
+  const prevHash = acc[acc.length - 1]?.hash ?? "0x" + "0".repeat(32);
   const hash = demoHash(`${e.id}|${e.type}|${e.refId}|${e.actor}|${e.timestamp}|${prevHash}`);
   acc.push({ ...e, hash, prevHash });
   return acc;
