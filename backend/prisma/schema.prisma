@@ -1,0 +1,243 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum UserRole {
+  FARMER
+  VETERINARIAN
+  COLLECTION_CENTRE
+  FACTORY
+  AUTHORITY
+  CONSUMER
+}
+
+enum MilkBatchStatus {
+  SAFE
+  HOLD
+  PROCESSING
+  DISPATCHED
+}
+
+enum ProcessingBatchStatus {
+  PROCESSING
+  COMPLETED
+  DISPATCHED
+  HOLD
+}
+
+model User {
+  id           String   @id @default(uuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  role         UserRole
+  organization String?
+
+  farmer Farmer?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Farmer {
+  id      String  @id @default(uuid())
+  userId  String  @unique
+  village String
+  phone   String?
+
+  user   User     @relation(fields: [userId], references: [id])
+  cattle Cattle[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("farmers")
+}
+
+model Veterinarian {
+  id        String  @id @default(uuid())
+  name      String
+  licenseNo String  @unique
+  phone     String?
+
+  treatments Treatment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("veterinarians")
+}
+
+model CollectionCentre {
+  id      String  @id @default(uuid())
+  name    String
+  code    String  @unique
+  village String?
+  address String?
+
+  milkBatches MilkBatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("collection_centres")
+}
+
+model Factory {
+  id      String  @id @default(uuid())
+  name    String
+  code    String  @unique
+  address String?
+
+  processingBatches ProcessingBatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("factories")
+}
+
+model Cattle {
+  id          String    @id @default(uuid())
+  cattleId    String    @unique
+  name        String?
+  breed       String?
+  farmerId    String
+  dateOfBirth DateTime?
+  sex         String?
+
+  farmer           Farmer            @relation(fields: [farmerId], references: [id])
+  treatments       Treatment[]
+  milkBatchAnimals MilkBatchAnimal[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("cattle")
+}
+
+model Treatment {
+  id             String @id @default(uuid())
+  cattleId       String
+  veterinarianId String
+
+  medicineName   String
+  dosage         String?
+  administeredAt DateTime
+  withdrawalEnds DateTime?
+  reason         String?
+
+  cattle       Cattle       @relation(fields: [cattleId], references: [id])
+  veterinarian Veterinarian @relation(fields: [veterinarianId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("treatments")
+}
+
+model MilkBatch {
+  id      String @id @default(uuid())
+  batchId String @unique
+
+  collectionCentreId String
+  date               DateTime
+  volumeL            Float
+  status             MilkBatchStatus @default(SAFE)
+
+  collectionCentre    CollectionCentre      @relation(fields: [collectionCentreId], references: [id])
+  contributingAnimals MilkBatchAnimal[]
+  processingBatches   ProcessingMilkBatch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("milk_batches")
+}
+
+model MilkBatchAnimal {
+  id          String @id @default(uuid())
+  milkBatchId String
+  cattleId    String
+
+  milkBatch MilkBatch @relation(fields: [milkBatchId], references: [id])
+  cattle    Cattle    @relation(fields: [cattleId], references: [id])
+
+  @@unique([milkBatchId, cattleId])
+  @@map("milk_batch_animals")
+}
+
+model ProcessingBatch {
+  id      String @id @default(uuid())
+  batchId String @unique
+
+  factoryId String
+  date      DateTime
+  volumeL   Float
+  product   String
+  packs     Int
+
+  status ProcessingBatchStatus @default(PROCESSING)
+
+  factory           Factory               @relation(fields: [factoryId], references: [id])
+  sourceMilkBatches ProcessingMilkBatch[]
+  packages          Package[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("processing_batches")
+}
+
+model ProcessingMilkBatch {
+  id                String @id @default(uuid())
+  processingBatchId String
+  milkBatchId       String
+
+  processingBatch ProcessingBatch @relation(fields: [processingBatchId], references: [id])
+  milkBatch       MilkBatch       @relation(fields: [milkBatchId], references: [id])
+
+  @@unique([processingBatchId, milkBatchId])
+  @@map("processing_milk_batches")
+}
+
+model Package {
+  id        String @id @default(uuid())
+  packageId String @unique
+
+  processingBatchId String
+  productName       String
+  volumeMl          Int
+
+  processingBatch ProcessingBatch @relation(fields: [processingBatchId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@map("packages")
+}
+
+model TraceabilityEvent {
+  id String @id @default(uuid())
+
+  eventType  String
+  entityType String
+  entityId   String
+
+  payload Json
+
+  blockchainTxId   String?
+  blockNumber      String?
+  blockchainStatus String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([eventType])
+  @@map("traceability_events")
+}

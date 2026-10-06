@@ -1,0 +1,32 @@
+{
+  "name": "bun-react-template",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun --hot src/index.ts",
+    "build": "bun build ./src/index.html --outdir=dist --sourcemap --target=browser --minify --define:process.env.NODE_ENV='\"production\"' --env='BUN_PUBLIC_*'",
+    "start": "NODE_ENV=production bun src/index.ts"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.10.0",
+    "@prisma/client": "7",
+    "dotenv": "^18.0.5",
+    "pg": "^8.23.1",
+    "prisma": "7",
+    "react": "^19",
+    "react-dom": "^19"
+  },
+  "devDependencies": {
+    "@types/bun": "latest",
+    "@types/node": "^26.6.3",
+    "@types/pg": "^8.23.1",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "tsx": "^4.23.15"
+  },
+  "peerDependencies": {
+    "typescript": "^7.0.2"
+  },
+  "module": "src/index.ts"
+}
