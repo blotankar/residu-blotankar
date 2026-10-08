@@ -15,6 +15,7 @@ import { Route as CollectionCentreRouteImport } from './routes/collection-centre
 import { Route as FactoryRouteImport } from './routes/factory'
 import { Route as FarmerRouteImport } from './routes/farmer'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as RegisterRouteImport } from './routes/register'
 import { Route as VerifyRouteImport } from './routes/verify'
 import { Route as VeterinarianRouteImport } from './routes/veterinarian'
 
@@ -48,6 +49,11 @@ const LoginRoute = LoginRouteImport.update({
   path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
+const RegisterRoute = RegisterRouteImport.update({
+  id: '/register',
+  path: '/register',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const VerifyRoute = VerifyRouteImport.update({
   id: '/verify',
   path: '/verify',
@@ -66,6 +72,7 @@ export interface FileRoutesByFullPath {
   '/factory': typeof FactoryRoute
   '/farmer': typeof FarmerRoute
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
   '/verify': typeof VerifyRoute
   '/veterinarian': typeof VeterinarianRoute
 }
@@ -76,6 +83,7 @@ export interface FileRoutesByTo {
   '/factory': typeof FactoryRoute
   '/farmer': typeof FarmerRoute
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
   '/verify': typeof VerifyRoute
   '/veterinarian': typeof VeterinarianRoute
 }
@@ -87,6 +95,7 @@ export interface FileRoutesById {
   '/factory': typeof FactoryRoute
   '/farmer': typeof FarmerRoute
   '/login': typeof LoginRoute
+  '/register': typeof RegisterRoute
   '/verify': typeof VerifyRoute
   '/veterinarian': typeof VeterinarianRoute
 }
@@ -99,6 +108,7 @@ export interface FileRouteTypes {
     | '/factory'
     | '/farmer'
     | '/login'
+    | '/register'
     | '/verify'
     | '/veterinarian'
   fileRoutesByTo: FileRoutesByTo
@@ -109,6 +119,7 @@ export interface FileRouteTypes {
     | '/factory'
     | '/farmer'
     | '/login'
+    | '/register'
     | '/verify'
     | '/veterinarian'
   id:
@@ -119,6 +130,7 @@ export interface FileRouteTypes {
     | '/factory'
     | '/farmer'
     | '/login'
+    | '/register'
     | '/verify'
     | '/veterinarian'
   fileRoutesById: FileRoutesById
@@ -130,6 +142,7 @@ export interface RootRouteChildren {
   FactoryRoute: typeof FactoryRoute
   FarmerRoute: typeof FarmerRoute
   LoginRoute: typeof LoginRoute
+  RegisterRoute: typeof RegisterRoute
   VerifyRoute: typeof VerifyRoute
   VeterinarianRoute: typeof VeterinarianRoute
 }
@@ -178,6 +191,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/register': {
+      id: '/register'
+      path: '/register'
+      fullPath: '/register'
+      preLoaderRoute: typeof RegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/verify': {
       id: '/verify'
       path: '/verify'
@@ -202,6 +222,7 @@ const rootRouteChildren: RootRouteChildren = {
   FactoryRoute: FactoryRoute,
   FarmerRoute: FarmerRoute,
   LoginRoute: LoginRoute,
+  RegisterRoute: RegisterRoute,
   VerifyRoute: VerifyRoute,
   VeterinarianRoute: VeterinarianRoute,
 }
