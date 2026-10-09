@@ -1,363 +1,294 @@
 
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowRight, Info } from "lucide-react";
-
-import { Brand } from "@/components/residuguard/PortalShell";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { roles } from "@/lib/roles";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useSession } from "@/lib/session";
-import type { RoleId } from "@/lib/residuguard-data";
-import { cn } from "@/lib/utils";
+import type { RoleId } from "@/lib/roles";
 
 export const Route = createFileRoute("/login")({
-  head: () => ({
-    meta: [
-      {
-        title: "Sign in — ResiduGuard Dairy Portal",
-      },
-      {
-        name: "description",
-        content:
-          "Sign in to ResiduGuard as a farmer, veterinarian, collection centre, factory or regulatory authority.",
-      },
-      {
-        property: "og:title",
-        content: "Sign in — ResiduGuard Dairy Portal",
-      },
-      {
-        property: "og:description",
-        content:
-          "Role-based access for farmers, vets, collection centres, factories and regulators.",
-      },
-    ],
-  }),
   component: LoginPage,
 });
 
-function LoginPage() {
-  const [selected, setSelected] =
-    useState<RoleId>("farmer");
+const roleOptions: {
+  id: RoleId;
+  label: string;
+  description: string;
+}[] = [
+  {
+    id: "farmer" as RoleId,
+    label: "Farmer",
+    description: "Manage cattle and track milk batches",
+  },
+  {
+    id: "veterinarian" as RoleId,
+    label: "Veterinarian",
+    description: "Manage treatments and animal health",
+  },
+  {
+    id: "collection_centre" as RoleId,
+    label: "Collection Centre",
+    description: "Manage milk collection and testing",
+  },
+  {
+    id: "factory" as RoleId,
+    label: "Factory",
+    description: "Manage milk processing and batches",
+  },
+  {
+    id: "authority" as RoleId,
+    label: "Authority",
+    description: "Monitor compliance and residue records",
+  },
+  {
+    id: "consumer" as RoleId,
+    label: "Consumer",
+    description: "Verify a product or milk batch",
+  },
+];
 
-  const [userId, setUserId] = useState("");
+// Update these destinations if your project uses different dashboard paths.
+const dashboardRoutes: Partial<Record<string, string>> = {
+  farmer: "/farmer",
+  veterinarian: "/veterinarian",
+  collection_centre: "/collection-centre",
+  factory: "/factory",
+  authority: "/authority",
+};
+
+function LoginPage() {
+  const navigate = useNavigate();
+  const { signIn } = useSession();
+
+  const [selectedRole, setSelectedRole] = useState<RoleId>(
+    "farmer" as RoleId,
+  );
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loginError, setLoginError] = useState("");
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const { signIn } = useSession();
-  const navigate = useNavigate();
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError("");
 
-  const active = roles.find(
-    (r) => r.id === selected,
-  )!;
-
-  async function submit(e: React.FormEvent) {
-    e.preventDefault();
-
-    setLoginError("");
-
-    /*
-     * Consumers do not need an account.
-     */
-    if (selected === "consumer") {
+    // Consumers use public batch verification and do not need an account.
+    if (selectedRole === ("consumer" as RoleId)) {
       navigate({ to: "/verify" });
       return;
     }
 
-    /*
-     * Validate email.
-     */
-    if (!userId.trim()) {
-      setLoginError("Please enter your email address.");
-      return;
-    }
-
-    /*
-     * Validate password.
-     */
-    if (!password.trim()) {
-      setLoginError("Please enter your password.");
+    if (!email.trim() || !password) {
+      setError("Please enter your email and password.");
       return;
     }
 
     setLoading(true);
 
     try {
-      /*
-       * Authenticate through the backend.
-       *
-       * The backend checks PostgreSQL and returns
-       * the authenticated user's role.
-       */
-      const result = await signIn(
-        userId.trim(),
+      const user = await signIn(
+        email.trim(),
         password,
+        selectedRole,
       );
 
-      if (!result.success) {
-        setLoginError(
-          result.error ??
-            "Invalid email or password.",
-        );
-        return;
-      }
-
-      /*
-       * The user's role comes from the database.
-       */
-      const loggedInRole = result.user?.role;
-
-      if (!loggedInRole) {
-        setLoginError(
-          "User role was not returned by the server.",
-        );
-        return;
-      }
-
-      /*
-       * Find the dashboard belonging to the role.
-       */
-      const destination = roles.find(
-        (role) => role.id === loggedInRole,
-      );
+      const destination = dashboardRoutes[user.role];
 
       if (!destination) {
-        setLoginError(
-          "Invalid user role.",
+        setError(
+          "Your dashboard route has not been configured. Please contact the administrator.",
         );
         return;
       }
 
-      /*
-       * Redirect to the appropriate dashboard.
-       */
-      navigate({
-        to: destination.path,
-      });
+      navigate({ to: destination as never });
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Login failed. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
   }
 
-  function goToRegister() {
-    navigate({ to: "/register" });
+  function openRegistration() {
+    if (selectedRole === ("consumer" as RoleId)) {
+      navigate({ to: "/verify" });
+      return;
+    }
+
+    if (selectedRole === ("authority" as RoleId)) {
+      setError(
+        "Authority accounts are created by an administrator. Public registration is not available.",
+      );
+      return;
+    }
+
+    // Pass the selected role to the Register page.
+    window.location.href = `/register?role=${encodeURIComponent(
+      String(selectedRole),
+    )}`;
   }
 
   return (
-    <div className="min-h-screen bg-background">
-      {/* HEADER */}
-      <header className="border-b border-border bg-card">
-        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-4 sm:px-6">
-          <Brand />
-
-          <Button
-            asChild
-            variant="ghost"
-            size="sm"
-          >
-            <Link to="/">
-              Back to home
-            </Link>
-          </Button>
+    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
+      <section className="w-full max-w-2xl rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+        <div className="mb-7 text-center">
+          <p className="text-sm font-semibold uppercase tracking-widest text-emerald-700">
+            ResiduGuard
+          </p>
+          <h1 className="mt-2 text-3xl font-bold text-slate-900">
+            Welcome back
+          </h1>
+          <p className="mt-2 text-sm text-slate-600">
+            Select your role and sign in to your account.
+          </p>
         </div>
-      </header>
 
-      {/* MAIN */}
-      <main className="mx-auto max-w-6xl px-4 py-10 sm:px-6">
-        <h1 className="text-3xl font-semibold">
-          Sign in to ResiduGuard
-        </h1>
+        <div className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold text-slate-800">
+            Choose your role
+          </h2>
 
-        <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-          Select your role and enter your registered
-          credentials to continue.
-        </p>
-
-        <form
-          onSubmit={submit}
-          className="mt-8 grid gap-8 lg:grid-cols-[1.5fr_1fr]"
-        >
-          {/* ROLE SELECTION */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            {roles.map((role) => {
-              const isActive =
-                selected === role.id;
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+            {roleOptions.map((role) => {
+              const active = selectedRole === role.id;
 
               return (
                 <button
-                  key={role.id}
+                  key={String(role.id)}
                   type="button"
-                  onClick={() =>
-                    setSelected(role.id)
-                  }
-                  aria-pressed={isActive}
-                  disabled={loading}
-                  className={cn(
-                    "panel p-5 text-left transition-colors",
-                    isActive
-                      ? "border-primary ring-2 ring-primary/25"
-                      : "hover:border-primary/50",
-                    loading &&
-                      "cursor-not-allowed opacity-60",
-                  )}
+                  onClick={() => {
+                    setSelectedRole(role.id);
+                    setError("");
+                  }}
+                  className={`rounded-xl border p-4 text-left transition ${
+                    active
+                      ? "border-emerald-600 bg-emerald-50 ring-1 ring-emerald-600"
+                      : "border-slate-200 bg-white hover:border-emerald-300"
+                  }`}
+                  aria-pressed={active}
                 >
-                  <span
-                    className={cn(
-                      "grid size-10 place-items-center rounded-lg",
-                      isActive
-                        ? "bg-primary text-primary-foreground"
-                        : "bg-accent text-accent-foreground",
-                    )}
-                  >
-                    <role.icon
-                      className="size-5"
-                      aria-hidden
-                    />
-                  </span>
-
-                  <span className="mt-3 block font-heading text-base font-semibold text-heading">
+                  <span className="block font-semibold text-slate-900">
                     {role.label}
                   </span>
-
-                  <span className="mt-1 block text-sm text-muted-foreground">
+                  <span className="mt-1 block text-sm text-slate-600">
                     {role.description}
                   </span>
                 </button>
               );
             })}
           </div>
+        </div>
 
-          {/* LOGIN CARD */}
-          <div className="panel h-fit p-6">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Signing in as
+        {selectedRole === ("consumer" as RoleId) ? (
+          <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+            <h2 className="font-semibold text-slate-900">
+              Verify a milk batch
+            </h2>
+            <p className="mt-1 text-sm text-slate-600">
+              Consumers can verify a batch directly without registering or
+              signing in.
             </p>
-
-            <p className="mt-1 font-heading text-xl font-semibold text-heading">
-              {active.label}
-            </p>
-
-            <p className="text-sm text-muted-foreground">
-              {active.person} · {active.org}
-            </p>
-
-            {/* CONSUMER */}
-            {selected === "consumer" ? (
-              <>
-                <div className="mt-5">
-                  <p className="flex gap-2 rounded-md bg-info-soft p-3 text-xs text-info">
-                    <Info
-                      className="mt-0.5 size-4 shrink-0"
-                      aria-hidden
-                    />
-
-                    Consumers do not need an account.
-                    You can directly verify a milk batch
-                    using its Batch ID.
-                  </p>
-                </div>
-
-                <Button
-                  type="submit"
-                  className="mt-6 w-full"
-                >
-                  Continue to batch verification
-
-                  <ArrowRight
-                    className="size-4"
-                    aria-hidden
-                  />
-                </Button>
-              </>
-            ) : (
-              <>
-                {/* EMAIL */}
-                <div className="mt-5 space-y-1.5">
-                  <Label htmlFor="userid">
-                    Email Address
-                  </Label>
-
-                  <Input
-                    id="userid"
-                    type="email"
-                    value={userId}
-                    onChange={(e) =>
-                      setUserId(e.target.value)
-                    }
-                    placeholder="Enter your email"
-                    autoComplete="username"
-                    disabled={loading}
-                  />
-                </div>
-
-                {/* PASSWORD */}
-                <div className="mt-4 space-y-1.5">
-                  <Label htmlFor="pass">
-                    Password
-                  </Label>
-
-                  <Input
-                    id="pass"
-                    type="password"
-                    value={password}
-                    onChange={(e) =>
-                      setPassword(e.target.value)
-                    }
-                    placeholder="Enter your password"
-                    autoComplete="current-password"
-                    disabled={loading}
-                  />
-                </div>
-
-                {/* ERROR */}
-                {loginError && (
-                  <div className="mt-4 rounded-md border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
-                    {loginError}
-                  </div>
-                )}
-
-                {/* LOGIN */}
-                <Button
-                  type="submit"
-                  className="mt-6 w-full"
-                  disabled={loading}
-                >
-                  {loading
-                    ? "Signing in..."
-                    : "Sign in"}
-
-                  {!loading && (
-                    <ArrowRight
-                      className="size-4"
-                      aria-hidden
-                    />
-                  )}
-                </Button>
-
-                {/* REGISTER */}
-                <div className="mt-5 text-center">
-                  <p className="text-sm text-muted-foreground">
-                    Don't have an account?
-                  </p>
-
-                  <Button
-                    type="button"
-                    variant="outline"
-                    className="mt-2 w-full"
-                    onClick={goToRegister}
-                    disabled={loading}
-                  >
-                    Create an account
-                  </Button>
-                </div>
-              </>
-            )}
+            <button
+              type="button"
+              onClick={() => navigate({ to: "/verify" })}
+              className="mt-4 w-full rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white hover:bg-emerald-800"
+            >
+              Continue to Verification
+            </button>
           </div>
-        </form>
-      </main>
-    </div>
+        ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
+            {selectedRole === ("authority" as RoleId) && (
+              <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+                Authority accounts are created by an administrator. If you
+                already have an account, sign in below.
+              </p>
+            )}
+
+            <div>
+              <label
+                htmlFor="email"
+                className="mb-1 block text-sm font-medium text-slate-700"
+              >
+                Email address
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                required
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="you@example.com"
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="password"
+                className="mb-1 block text-sm font-medium text-slate-700"
+              >
+                Password
+              </label>
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={password}
+                onChange={(event) => setPassword(event.target.value)}
+                placeholder="Enter your password"
+                className="w-full rounded-lg border border-slate-300 px-4 py-3 outline-none focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100"
+              />
+            </div>
+
+            {error && (
+              <p
+                role="alert"
+                className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+              >
+                {error}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full rounded-lg bg-emerald-700 px-4 py-3 font-semibold text-white transition hover:bg-emerald-800 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {loading ? "Signing in..." : "Sign In"}
+            </button>
+
+            {selectedRole !== ("authority" as RoleId) && (
+              <p className="text-center text-sm text-slate-600">
+                Don't have an account?{" "}
+                <button
+                  type="button"
+                  onClick={openRegistration}
+                  className="font-semibold text-emerald-700 hover:underline"
+                >
+                  Register
+                </button>
+              </p>
+            )}
+          </form>
+        )}
+
+        {error && selectedRole === ("consumer" as RoleId) && (
+          <p role="alert" className="mt-4 text-sm text-red-700">
+            {error}
+          </p>
+        )}
+
+        <p className="mt-7 text-center text-xs text-slate-500">
+          ResiduGuard · Milk safety and residue traceability
+        </p>
+      </section>
+    </main>
   );
 }
-

@@ -20,104 +20,219 @@ const reverseRoleMap: Record<UserRole, string> = {
 };
 
 function json(data: unknown, status = 200) {
-  return Response.json(data, {
+  return new Response(JSON.stringify(data), {
     status,
     headers: {
+      "Content-Type": "application/json",
       "Access-Control-Allow-Origin": "*",
-      "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
       "Access-Control-Allow-Headers": "Content-Type, Authorization",
     },
   });
 }
 
-export async function register(req: Request) {
+function normalizeRole(value: unknown): string {
+  return typeof value === "string" ? value.trim().toLowerCase() : "";
+}
+
+function normalizeString(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function isValidEmail(email: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+export async function register(req: Request): Promise<Response> {
   try {
     const body = await req.json();
 
-    const {
-      fullName,
-      email,
-      password,
-      role,
-    } = body;
+    const fullName = normalizeString(body.fullName);
+    const email = normalizeString(body.email).toLowerCase();
+    const password = typeof body.password === "string" ? body.password : "";
+    const roleKey = normalizeRole(body.role);
+    const role = roleMap[roleKey];
 
-    if (!fullName || !email || !password || !role) {
+    if (!fullName || !email || !password || !roleKey) {
       return json(
-        {
-          error:
-            "Full name, email, password and role are required.",
-        },
+        { error: "Name, email, password, and role are required." },
         400,
       );
     }
 
-    const normalizedEmail = String(email)
-      .trim()
-      .toLowerCase();
+    if (!isValidEmail(email)) {
+      return json({ error: "Please enter a valid email address." }, 400);
+    }
 
-    const normalizedRole = String(role)
-      .trim()
-      .toLowerCase();
-
-    if (!roleMap[normalizedRole]) {
+    if (password.length < 8) {
       return json(
-        {
-          error: "Invalid user role.",
-        },
+        { error: "Password must contain at least 8 characters." },
         400,
       );
     }
 
-    if (String(password).length < 6) {
+    if (!role) {
+      return json({ error: "Invalid role selected." }, 400);
+    }
+
+    // Authority accounts must be provisioned by an administrator.
+    if (role === UserRole.AUTHORITY) {
       return json(
         {
           error:
-            "Password must contain at least 6 characters.",
+            "Authority accounts are created by an administrator. Please contact your administrator.",
         },
-        400,
+        403,
       );
+    }
+
+    // Consumers continue using guest batch verification.
+    if (role === UserRole.CONSUMER) {
+      return json(
+        {
+          error:
+            "Consumer accounts are not required. Please use batch verification.",
+        },
+        403,
+      );
+    }
+
+    const phone = normalizeString(body.phone) || null;
+
+    // Validate role-specific information before writing anything.
+    let village = "";
+    let licenseNo = "";
+    let centreCode = "";
+    let centreVillage = "";
+    let centreAddress = "";
+    let factoryCode = "";
+    let factoryAddress = "";
+
+    switch (role) {
+      case UserRole.FARMER:
+        village = normalizeString(body.village);
+
+        if (!village) {
+          return json({ error: "Village is required for farmers." }, 400);
+        }
+        break;
+
+      case UserRole.VETERINARIAN:
+        licenseNo = normalizeString(body.licenseNo);
+
+        if (!licenseNo) {
+          return json(
+            { error: "Veterinarian license number is required." },
+            400,
+          );
+        }
+        break;
+
+      case UserRole.COLLECTION_CENTRE:
+        centreCode = normalizeString(body.code);
+        centreVillage = normalizeString(body.village);
+        centreAddress = normalizeString(body.address);
+
+        if (!centreCode) {
+          return json(
+            { error: "Collection centre code is required." },
+            400,
+          );
+        }
+        break;
+
+      case UserRole.FACTORY:
+        factoryCode = normalizeString(body.code);
+        factoryAddress = normalizeString(body.address);
+
+        if (!factoryCode) {
+          return json({ error: "Factory code is required." }, 400);
+        }
+        break;
+
+      default:
+        return json({ error: "This role cannot register publicly." }, 403);
     }
 
     const existingUser = await prisma.user.findUnique({
-      where: {
-        email: normalizedEmail,
-      },
+      where: { email },
     });
 
     if (existingUser) {
       return json(
-        {
-          error:
-            "An account with this email already exists.",
-        },
+        { error: "An account with this email already exists." },
         409,
       );
     }
 
-    /*
-     * Bun provides password hashing through Bun.password.
-     * The password itself is NEVER stored in PostgreSQL.
-     */
-    const passwordHash = await Bun.password.hash(
-      password,
-      {
-        algorithm: "bcrypt",
-        cost: 12,
-      },
-    );
+    const passwordHash = await Bun.password.hash(password, {
+      algorithm: "bcrypt",
+      cost: 12,
+    });
 
-    const user = await prisma.user.create({
-      data: {
-        name: String(fullName).trim(),
-        email: normalizedEmail,
-        passwordHash,
-        role: roleMap[normalizedRole],
-      },
+    // Create credentials and the role-specific profile in one transaction.
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
+        data: {
+          name: fullName,
+          email,
+          passwordHash,
+          role,
+        },
+      });
+
+      switch (role) {
+        case UserRole.FARMER:
+          await tx.farmer.create({
+            data: {
+              userId: createdUser.id,
+              village,
+              phone,
+            },
+          });
+          break;
+
+        case UserRole.VETERINARIAN:
+          await tx.veterinarian.create({
+            data: {
+              userId: createdUser.id,
+              name: fullName,
+              licenseNo,
+              phone,
+            },
+          });
+          break;
+
+        case UserRole.COLLECTION_CENTRE:
+          await tx.collectionCentre.create({
+            data: {
+              userId: createdUser.id,
+              name: fullName,
+              code: centreCode,
+              village: centreVillage || null,
+              address: centreAddress || null,
+            },
+          });
+          break;
+
+        case UserRole.FACTORY:
+          await tx.factory.create({
+            data: {
+              userId: createdUser.id,
+              name: fullName,
+              code: factoryCode,
+              address: factoryAddress || null,
+            },
+          });
+          break;
+      }
+
+      return createdUser;
     });
 
     return json(
       {
-        message: "Account created successfully.",
+        message: "Registration successful.",
         user: {
           id: user.id,
           fullName: user.name,
@@ -127,67 +242,78 @@ export async function register(req: Request) {
       },
       201,
     );
-  } catch (error) {
+  } catch (error: any) {
     console.error("Registration error:", error);
 
-    return json(
-      {
-        error: "Failed to create account.",
-      },
-      500,
-    );
+    if (error?.code === "P2002") {
+      return json(
+        {
+          error:
+            "This email, license number, or organization code is already registered.",
+        },
+        409,
+      );
+    }
+
+    return json({ error: "Registration failed. Please try again." }, 500);
   }
 }
 
-export async function login(req: Request) {
+export async function login(req: Request): Promise<Response> {
   try {
     const body = await req.json();
 
-    const {
-      email,
-      password,
-    } = body;
+    const email = normalizeString(body.email).toLowerCase();
+    const password = typeof body.password === "string" ? body.password : "";
+    const roleKey = normalizeRole(body.role);
+    const selectedRole = roleMap[roleKey];
 
-    if (!email || !password) {
+    if (!email || !password || !roleKey) {
       return json(
-        {
-          error: "Email and password are required.",
-        },
+        { error: "Email, password, and selected role are required." },
         400,
       );
     }
 
-    const normalizedEmail = String(email)
-      .trim()
-      .toLowerCase();
+    if (!selectedRole) {
+      return json({ error: "Invalid role selected." }, 400);
+    }
 
-    const user = await prisma.user.findUnique({
-      where: {
-        email: normalizedEmail,
-      },
-    });
-
-    if (!user) {
+    if (selectedRole === UserRole.CONSUMER) {
       return json(
         {
-          error: "Invalid email or password.",
+          error:
+            "Consumers do not need to log in. Please use batch verification.",
         },
-        401,
+        403,
       );
     }
 
-    const passwordValid =
-      await Bun.password.verify(
-        password,
-        user.passwordHash,
-      );
+    const user = await prisma.user.findUnique({
+      where: { email },
+    });
 
-    if (!passwordValid) {
+    // Use the same message for unknown email and incorrect password.
+    if (!user) {
+      return json({ error: "Invalid email or password." }, 401);
+    }
+
+    const passwordMatches = await Bun.password.verify(
+      password,
+      user.passwordHash,
+    );
+
+    if (!passwordMatches) {
+      return json({ error: "Invalid email or password." }, 401);
+    }
+
+    // A valid password is not enough: the selected role must match the account.
+    if (user.role !== selectedRole) {
       return json(
         {
-          error: "Invalid email or password.",
+          error: `This account is registered as ${reverseRoleMap[user.role]}. Please select the correct role.`,
         },
-        401,
+        403,
       );
     }
 
@@ -202,12 +328,6 @@ export async function login(req: Request) {
     });
   } catch (error) {
     console.error("Login error:", error);
-
-    return json(
-      {
-        error: "Failed to login.",
-      },
-      500,
-    );
+    return json({ error: "Login failed. Please try again." }, 500);
   }
 }

@@ -35,3 +35,18 @@ dist-ssr
 backend/node_modules/
 backend/.env
 backend/generated/
+
+
+# Environment secrets
+.env
+.env.*
+!.env.example
+
+# Backend generated and installed files
+backend/node_modules/
+backend/generated/
+backend/.env
+
+# Python / temporary files
+__pycache__/
+*.pyc

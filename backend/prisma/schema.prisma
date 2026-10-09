@@ -38,7 +38,11 @@ model User {
   role         UserRole
   organization String?
 
-  farmer Farmer?
+  farmer           Farmer?
+  veterinarian     Veterinarian?
+  collectionCentre CollectionCentre?
+  factory          Factory?
+  authority        Authority?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -52,7 +56,7 @@ model Farmer {
   village String
   phone   String?
 
-  user   User     @relation(fields: [userId], references: [id])
+  user   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   cattle Cattle[]
 
   createdAt DateTime @default(now())
@@ -63,10 +67,12 @@ model Farmer {
 
 model Veterinarian {
   id        String  @id @default(uuid())
+  userId    String  @unique
   name      String
   licenseNo String  @unique
   phone     String?
 
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   treatments Treatment[]
 
   createdAt DateTime @default(now())
@@ -77,11 +83,13 @@ model Veterinarian {
 
 model CollectionCentre {
   id      String  @id @default(uuid())
+  userId  String  @unique
   name    String
   code    String  @unique
   village String?
   address String?
 
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
   milkBatches MilkBatch[]
 
   createdAt DateTime @default(now())
@@ -92,16 +100,33 @@ model CollectionCentre {
 
 model Factory {
   id      String  @id @default(uuid())
+  userId  String  @unique
   name    String
   code    String  @unique
   address String?
 
+  user              User              @relation(fields: [userId], references: [id], onDelete: Cascade)
   processingBatches ProcessingBatch[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   @@map("factories")
+}
+
+model Authority {
+  id           String  @id @default(uuid())
+  userId       String  @unique
+  name         String
+  organization String?
+  designation  String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("authorities")
 }
 
 model Cattle {
