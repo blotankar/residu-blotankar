@@ -1,12 +1,15 @@
-import { getCattle } from "./routes/cattle";
+
+import { getCattle, createCattle } from "./routes/cattle";
 import { login, register } from "./routes/auth";
+import {
+  authenticateRequest,
+  requireRoles,
+} from "./lib/auth-middleware";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods":
-    "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers":
-    "Content-Type, Authorization",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
 const server = Bun.serve({
@@ -14,8 +17,8 @@ const server = Bun.serve({
 
   async fetch(req) {
     const url = new URL(req.url);
+    const path = url.pathname;
 
-    // CORS preflight
     if (req.method === "OPTIONS") {
       return new Response(null, {
         status: 204,
@@ -23,89 +26,75 @@ const server = Bun.serve({
       });
     }
 
-    // =========================
-    // AUTH
-    // =========================
-
-    // POST /api/auth/register
-    if (
-      req.method === "POST" &&
-      url.pathname === "/api/auth/register"
-    ) {
+    // Public authentication endpoints.
+    if (req.method === "POST" && path === "/api/auth/register") {
       const response = await register(req);
-
-      // Add CORS headers
-      Object.entries(corsHeaders).forEach(
-        ([key, value]) => {
-          response.headers.set(key, value);
-        },
-      );
-
+      Object.entries(corsHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value);
+      });
       return response;
     }
 
-    // POST /api/auth/login
-    if (
-      req.method === "POST" &&
-      url.pathname === "/api/auth/login"
-    ) {
+    if (req.method === "POST" && path === "/api/auth/login") {
       const response = await login(req);
-
-      // Add CORS headers
-      Object.entries(corsHeaders).forEach(
-        ([key, value]) => {
-          response.headers.set(key, value);
-        },
-      );
-
+      Object.entries(corsHeaders).forEach(([key, value]) => {
+        response.headers.set(key, value);
+      });
       return response;
     }
 
-    // =========================
-    // CATTLE
-    // =========================
-
-    // GET /api/cattle
+    // All cattle endpoints below require a valid JWT.
     if (
-      req.method === "GET" &&
-      url.pathname === "/api/cattle"
+      (req.method === "GET" || req.method === "POST") &&
+      path === "/api/cattle"
     ) {
-      try {
-        const cattle = await getCattle();
+      const user = authenticateRequest(req);
 
-        return Response.json(cattle, {
-          headers: corsHeaders,
-        });
-      } catch (error) {
-        console.error(
-          "Failed to fetch cattle:",
-          error,
-        );
+      if (user instanceof Response) {
+        return user;
+      }
 
-        return Response.json(
-          {
-            error: "Failed to fetch cattle",
-          },
-          {
-            status: 500,
+      if (req.method === "GET") {
+        const permission = requireRoles(user, [
+          "farmer",
+          "veterinarian",
+          "authority",
+        ]);
+
+        if (permission) {
+          return permission;
+        }
+
+        try {
+          const cattle = await getCattle(user);
+
+          return Response.json(cattle, {
             headers: corsHeaders,
-          },
-        );
+          });
+        } catch (error) {
+          console.error("Failed to fetch cattle:", error);
+
+          return Response.json(
+            { error: "Failed to fetch cattle." },
+            { status: 500, headers: corsHeaders },
+          );
+        }
+      }
+
+      if (req.method === "POST") {
+        const permission = requireRoles(user, ["farmer"]);
+
+        if (permission) {
+          return permission;
+        }
+
+        return createCattle(req, user);
       }
     }
 
-    // =========================
-    // NOT FOUND
-    // =========================
-
     return Response.json(
-      {
-        error: "Route not found",
-      },
-      {
-        status: 404,
-        headers: corsHeaders,
-      },
+      { error: "Route not found." },
+      { status: 404, headers: corsHeaders },
     );
   },
 });

@@ -1,3 +1,4 @@
+
 import {
   createContext,
   useContext,
@@ -16,6 +17,11 @@ export type AuthUser = {
   role: RoleId;
 };
 
+type StoredSession = {
+  user: AuthUser;
+  token: string;
+};
+
 type AuthResponse = {
   message?: string;
   error?: string;
@@ -25,10 +31,12 @@ type AuthResponse = {
     email: string;
     role: string;
   };
+  token?: string;
 };
 
 type SessionContextValue = {
   user: AuthUser | null;
+  token: string | null;
   register: (
     fullName: string,
     email: string,
@@ -48,12 +56,42 @@ const SessionContext = createContext<SessionContextValue | undefined>(
   undefined,
 );
 
-function readStoredUser(): AuthUser | null {
+function readStoredSession(): StoredSession | null {
   if (typeof window === "undefined") return null;
 
   try {
     const saved = localStorage.getItem(SESSION_KEY);
-    return saved ? (JSON.parse(saved) as AuthUser) : null;
+    if (!saved) return null;
+
+    const parsed: unknown = JSON.parse(saved);
+
+    if (
+      typeof parsed !== "object" ||
+      parsed === null ||
+      !("user" in parsed) ||
+      !("token" in parsed) ||
+      typeof parsed.token !== "string" ||
+      !parsed.token ||
+      typeof parsed.user !== "object" ||
+      parsed.user === null
+    ) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+
+    const user = parsed.user as AuthUser;
+
+    if (
+      typeof user.id !== "string" ||
+      typeof user.fullName !== "string" ||
+      typeof user.email !== "string" ||
+      typeof user.role !== "string"
+    ) {
+      localStorage.removeItem(SESSION_KEY);
+      return null;
+    }
+
+    return { user, token: parsed.token };
   } catch {
     localStorage.removeItem(SESSION_KEY);
     return null;
@@ -88,7 +126,15 @@ async function postAuth(
 }
 
 export function SessionProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(() => readStoredUser());
+  const [initialSession] = useState<StoredSession | null>(() =>
+    readStoredSession(),
+  );
+  const [user, setUser] = useState<AuthUser | null>(
+    () => initialSession?.user ?? null,
+  );
+  const [token, setToken] = useState<string | null>(
+    () => initialSession?.token ?? null,
+  );
 
   async function register(
     fullName: string,
@@ -97,6 +143,7 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     role: RoleId,
     profile: Record<string, string>,
   ): Promise<void> {
+    // Registration does not automatically sign in the user.
     await postAuth("register", {
       fullName,
       email,
@@ -111,16 +158,31 @@ export function SessionProvider({ children }: { children: ReactNode }) {
     password: string,
     role: RoleId,
   ): Promise<AuthUser> {
-    const result = await postAuth("login", { email, password, role });
+    const result = await postAuth("login", {
+      email,
+      password,
+      role,
+    });
 
     if (!result.user) {
       throw new Error("The server did not return user information.");
     }
 
-    const authenticatedUser = result.user as AuthUser;
+    if (!result.token) {
+      throw new Error(
+        "The server did not return an authentication token. Check the backend login response.",
+      );
+    }
 
-    localStorage.setItem(SESSION_KEY, JSON.stringify(authenticatedUser));
+    const authenticatedUser = result.user as AuthUser;
+    const newSession: StoredSession = {
+      user: authenticatedUser,
+      token: result.token,
+    };
+
+    localStorage.setItem(SESSION_KEY, JSON.stringify(newSession));
     setUser(authenticatedUser);
+    setToken(result.token);
 
     return authenticatedUser;
   }
@@ -128,11 +190,12 @@ export function SessionProvider({ children }: { children: ReactNode }) {
   function signOut() {
     localStorage.removeItem(SESSION_KEY);
     setUser(null);
+    setToken(null);
   }
 
   return (
     <SessionContext.Provider
-      value={{ user, register, signIn, signOut }}
+      value={{ user, token, register, signIn, signOut }}
     >
       {children}
     </SessionContext.Provider>

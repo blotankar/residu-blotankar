@@ -129,23 +129,26 @@ model Authority {
   @@map("authorities")
 }
 
+
 model Cattle {
-  id          String    @id @default(uuid())
-  cattleId    String    @unique
+  id          String   @id @default(uuid())
+  cattleId    String
   name        String?
   breed       String?
-  farmerId    String
   dateOfBirth DateTime?
   sex         String?
 
-  farmer           Farmer            @relation(fields: [farmerId], references: [id])
+  farmerId String
+  farmer   Farmer @relation(fields: [farmerId], references: [id])
+
   treatments       Treatment[]
   milkBatchAnimals MilkBatchAnimal[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@map("cattle")
+  @@unique([farmerId, cattleId])
+  @@map("Cattle")
 }
 
 model Treatment {

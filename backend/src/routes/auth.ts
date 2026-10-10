@@ -1,5 +1,13 @@
+
 import { prisma } from "../lib/prisma";
 import { UserRole } from "../../generated/prisma/client";
+import jwt from "jsonwebtoken";
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET is not defined");
+}
 
 const roleMap: Record<string, UserRole> = {
   farmer: UserRole.FARMER,
@@ -43,13 +51,33 @@ function isValidEmail(email: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+/**
+ * Creates a signed JWT for an authenticated user.
+ * The token contains the user ID and role, but no password or private data.
+ */
+function createToken(userId: string, role: UserRole): string {
+  return jwt.sign(
+    {
+      sub: userId,
+      role: reverseRoleMap[role],
+    },
+    JWT_SECRET!,
+    {
+      expiresIn: "8h",
+      issuer: "residuguard-api",
+      audience: "residuguard-frontend",
+    },
+  );
+}
+
 export async function register(req: Request): Promise<Response> {
   try {
     const body = await req.json();
 
     const fullName = normalizeString(body.fullName);
     const email = normalizeString(body.email).toLowerCase();
-    const password = typeof body.password === "string" ? body.password : "";
+    const password =
+      typeof body.password === "string" ? body.password : "";
     const roleKey = normalizeRole(body.role);
     const role = roleMap[roleKey];
 
@@ -61,7 +89,10 @@ export async function register(req: Request): Promise<Response> {
     }
 
     if (!isValidEmail(email)) {
-      return json({ error: "Please enter a valid email address." }, 400);
+      return json(
+        { error: "Please enter a valid email address." },
+        400,
+      );
     }
 
     if (password.length < 8) {
@@ -86,7 +117,7 @@ export async function register(req: Request): Promise<Response> {
       );
     }
 
-    // Consumers continue using guest batch verification.
+    // Consumers use guest batch verification.
     if (role === UserRole.CONSUMER) {
       return json(
         {
@@ -99,7 +130,7 @@ export async function register(req: Request): Promise<Response> {
 
     const phone = normalizeString(body.phone) || null;
 
-    // Validate role-specific information before writing anything.
+    // Validate role-specific information before writing to the database.
     let village = "";
     let licenseNo = "";
     let centreCode = "";
@@ -113,7 +144,10 @@ export async function register(req: Request): Promise<Response> {
         village = normalizeString(body.village);
 
         if (!village) {
-          return json({ error: "Village is required for farmers." }, 400);
+          return json(
+            { error: "Village is required for farmers." },
+            400,
+          );
         }
         break;
 
@@ -146,12 +180,18 @@ export async function register(req: Request): Promise<Response> {
         factoryAddress = normalizeString(body.address);
 
         if (!factoryCode) {
-          return json({ error: "Factory code is required." }, 400);
+          return json(
+            { error: "Factory code is required." },
+            400,
+          );
         }
         break;
 
       default:
-        return json({ error: "This role cannot register publicly." }, 403);
+        return json(
+          { error: "This role cannot register publicly." },
+          403,
+        );
     }
 
     const existingUser = await prisma.user.findUnique({
@@ -170,7 +210,7 @@ export async function register(req: Request): Promise<Response> {
       cost: 12,
     });
 
-    // Create credentials and the role-specific profile in one transaction.
+    // Create the user and profile in a single database transaction.
     const user = await prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
         data: {
@@ -230,6 +270,8 @@ export async function register(req: Request): Promise<Response> {
       return createdUser;
     });
 
+    const token = createToken(user.id, user.role);
+
     return json(
       {
         message: "Registration successful.",
@@ -239,6 +281,7 @@ export async function register(req: Request): Promise<Response> {
           email: user.email,
           role: reverseRoleMap[user.role],
         },
+        token,
       },
       201,
     );
@@ -255,7 +298,10 @@ export async function register(req: Request): Promise<Response> {
       );
     }
 
-    return json({ error: "Registration failed. Please try again." }, 500);
+    return json(
+      { error: "Registration failed. Please try again." },
+      500,
+    );
   }
 }
 
@@ -264,7 +310,8 @@ export async function login(req: Request): Promise<Response> {
     const body = await req.json();
 
     const email = normalizeString(body.email).toLowerCase();
-    const password = typeof body.password === "string" ? body.password : "";
+    const password =
+      typeof body.password === "string" ? body.password : "";
     const roleKey = normalizeRole(body.role);
     const selectedRole = roleMap[roleKey];
 
@@ -276,7 +323,10 @@ export async function login(req: Request): Promise<Response> {
     }
 
     if (!selectedRole) {
-      return json({ error: "Invalid role selected." }, 400);
+      return json(
+        { error: "Invalid role selected." },
+        400,
+      );
     }
 
     if (selectedRole === UserRole.CONSUMER) {
@@ -293,9 +343,12 @@ export async function login(req: Request): Promise<Response> {
       where: { email },
     });
 
-    // Use the same message for unknown email and incorrect password.
+    // Use the same response for unknown email and incorrect password.
     if (!user) {
-      return json({ error: "Invalid email or password." }, 401);
+      return json(
+        { error: "Invalid email or password." },
+        401,
+      );
     }
 
     const passwordMatches = await Bun.password.verify(
@@ -304,10 +357,13 @@ export async function login(req: Request): Promise<Response> {
     );
 
     if (!passwordMatches) {
-      return json({ error: "Invalid email or password." }, 401);
+      return json(
+        { error: "Invalid email or password." },
+        401,
+      );
     }
 
-    // A valid password is not enough: the selected role must match the account.
+    // The selected role must match the user's actual database role.
     if (user.role !== selectedRole) {
       return json(
         {
@@ -317,6 +373,9 @@ export async function login(req: Request): Promise<Response> {
       );
     }
 
+    // Issue a token only after credentials and role are verified.
+    const token = createToken(user.id, user.role);
+
     return json({
       message: "Login successful.",
       user: {
@@ -325,9 +384,14 @@ export async function login(req: Request): Promise<Response> {
         email: user.email,
         role: reverseRoleMap[user.role],
       },
+      token,
     });
   } catch (error) {
     console.error("Login error:", error);
-    return json({ error: "Login failed. Please try again." }, 500);
+
+    return json(
+      { error: "Login failed. Please try again." },
+      500,
+    );
   }
 }
